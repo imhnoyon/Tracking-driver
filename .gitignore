@@ -1,0 +1,20 @@
+# --- Security & Secrets ---
+# NEVER track your API keys or secret settings
+.env
+
+# --- Python & Django Environment ---
+# Ignore the virtual environment folder
+venv/
+env/
+# Ignore compiled Python files (they make git messy)
+__pycache__/
+*.pyc
+
+# --- Local Database ---
+# Don't sync your local test data to GitHub
+db.sqlite3
+
+# --- Media & Static ---
+# Ignore files uploaded by users during testing
+/media/
+/static/
