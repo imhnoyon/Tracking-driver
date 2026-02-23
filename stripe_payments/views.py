@@ -96,7 +96,7 @@ class CreateCheckoutSession(APIView):
         try:
             # You can pass product details in the request body
             product_name = request.data.get('product_name', 'Default Product')
-            amount = int(request.data.get('amount', 500))  # amount in cents
+            amount = int(request.data.get('amount', 1000))  # amount in cents
             quantity = int(request.data.get('quantity', 1))
             session = stripe.checkout.Session.create(
                 payment_method_types=['card'],
@@ -144,8 +144,8 @@ class ConnectStripeView(APIView):
                 # Create a new Express account
                 account = stripe.Account.create(
                     type="express",
-                    country="US",  # Or dynamic based on user profile
-                    email="mahedi.dev2002@gmail.com",
+                    country="US", 
+                    email="mahedi.dev2002@gmail.com", # Your hardcoded email
                     capabilities={
                         "card_payments": {"requested": True},
                         "transfers": {"requested": True},
@@ -153,23 +153,43 @@ class ConnectStripeView(APIView):
                 )
                 stripe_account.stripe_account_id = account.id
                 stripe_account.save()
+            else:
+                # Refresh account status from Stripe
+                account = stripe.Account.retrieve(stripe_account.stripe_account_id)
 
             # Create an account link for onboarding
-            # account_link = stripe.AccountLink.create(
-            #     account=stripe_account.stripe_account_id,
-            #     refresh_url=request.build_absolute_uri('/stripe/connect-refresh/'),
-            #     return_url=request.build_absolute_uri('/stripe/connect-success/'),
-            #     type="account_onboarding",
-            # )
+            account_link = stripe.AccountLink.create(
+                account=stripe_account.stripe_account_id,
+                refresh_url=request.build_absolute_uri('/stripe/connect-refresh/'),
+                return_url=request.build_absolute_uri('/stripe/connect-success/'),
+                type="account_onboarding",
+            )
 
             return Response({
                 "account_id": stripe_account.stripe_account_id,
-                # "onboarding_url": account_link.url
-                
+                "onboarding_url": account_link.url,
+                "is_onboarded": stripe_account.is_onboarded,
+                "details_submitted": account.details_submitted
             })
         except Exception as e:
-            print(f"Error in ConnectStripeView: {str(e)}")
+           
             return Response({"error": str(e)}, status=400)
+
+
+def check_account_ready(account_id):
+    """Utility to check if a connected account can receive transfers."""
+    try:
+        account = stripe.Account.retrieve(account_id)
+        if not account.details_submitted:
+            return False, "Onboarding not completed. Please complete onboarding via the connect-account link."
+        
+        capabilities = account.get('capabilities', {})
+        if capabilities.get('transfers') != 'active':
+            return False, "The 'transfers' capability is not active. Stripe may be verifying the account documents."
+        
+        return True, None
+    except Exception as e:
+        return False, str(e)
 
 
 class TransferMoneyView(APIView):
@@ -188,8 +208,12 @@ class TransferMoneyView(APIView):
             recipient_stripe = StripeAccount.objects.get(user=recipient_user)
 
             if not recipient_stripe.stripe_account_id:
-                
                 return Response({"error": "Recipient does not have a linked Stripe account"}, status=400)
+
+            # --- NEW READY CHECK ---
+            is_ready, error_msg = check_account_ready(recipient_stripe.stripe_account_id)
+            if not is_ready:
+                return Response({"error": error_msg}, status=400)
 
             # Perform the transfer
             transfer = stripe.Transfer.create(
@@ -237,6 +261,11 @@ class CreateTransferCheckoutSession(APIView):
 
             recipient_user = User.objects.get(id=recipient_id)
             recipient_stripe = StripeAccount.objects.get(user=recipient_user)
+
+            # --- NEW READY CHECK ---
+            is_ready, error_msg = check_account_ready(recipient_stripe.stripe_account_id)
+            if not is_ready:
+                return Response({"error": error_msg}, status=400)
 
             # Calculate transfer amount (what goes to the driver/seller)
             transfer_amount = int(total_amount * (100 - commission_pct) / 100)
@@ -311,6 +340,11 @@ class SendMoneyByCardView(APIView):
 
             if not recipient_stripe.stripe_account_id:
                 return Response({"error": "Recipient has not linked their Stripe account"}, status=400)
+
+            # --- NEW READY CHECK ---
+            is_ready, error_msg = check_account_ready(recipient_stripe.stripe_account_id)
+            if not is_ready:
+                return Response({"error": error_msg}, status=400)
 
             # Create a Checkout Session
             session = stripe.checkout.Session.create(
