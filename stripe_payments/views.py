@@ -73,10 +73,11 @@ class LogoutView(APIView):
             request.user.auth_token.delete()
         return Response({"message": "Logged out successfully"})
 
-
+# from rest_framework.filters import SearchFilter
 class PaymentListView(APIView):
     permission_classes = [IsAuthenticated]
-
+    # filter_backends = [SearchFilter]
+    # search_fields = ['amount']
     def get(self, request):
         payments = Payment.objects.filter(user=request.user).order_by('-created_at')
         data = [{

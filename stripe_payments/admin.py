@@ -1,6 +1,9 @@
 from django.contrib import admin
 from .models import *
 
+
+
+admin.site.site_header = "Driver Tracking Pannel"
 @admin.register(Payment)
 class PaymentAdmin(admin.ModelAdmin):
     list_display = ('user', 'amount', 'paid', 'created_at')
