@@ -47,6 +47,7 @@ INSTALLED_APPS = [
     "Driver",
     'stripe_payments',
     'rest_framework.authtoken',
+    'django_filters',
 ]
 
 MIDDLEWARE = [
@@ -95,7 +96,9 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_FILTER_BACKENDS': [
         'rest_framework.filters.SearchFilter',
+        'django_filters.rest_framework.DjangoFilterBackend',
     ],
+   
 }
 
 # Database

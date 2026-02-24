@@ -38,3 +38,46 @@ class UpdateDriverLocation(APIView):
         )
 
         return Response({"status": "Location updated"})
+
+from .paginations import UserPagination
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework.filters import SearchFilter
+from rest_framework import generics
+from django.contrib.auth.models import User
+from .serializers import UserSerializer
+class UserListView(generics.ListAPIView):
+    queryset = User.objects.all()
+    serializer_class=UserSerializer
+    pagination_class=UserPagination
+    filter_backends = [SearchFilter,DjangoFilterBackend] 
+    search_fields =['id','username','email']
+    filterset_fields = ['id']
+    
+    def list(self, request, *args, **kwargs):
+        queryset=self.filter_queryset(self.get_queryset())
+        try:
+            page=self.paginate_queryset(queryset)
+            if page is not None:
+                serializer =self.get_serializer(page,many=True)
+                return Response({
+                    "success": True,
+                     "status": 200,
+                    "message": "Users retrieved successfully",
+                    "data": serializer.data
+                }, status=status.HTTP_200_OK)
+            
+            serializer = self.get_serializer(queryset, many=True)
+            return Response({
+                "success": True,
+                 "status": 200,
+                "message": "Users retrieved successfully",
+                "data": serializer.data
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                "success": True,
+                "status": 200,
+                "message": "No data found for this page.",
+                "data": []
+            })
